@@ -27,7 +27,7 @@ class MRIDataset(Dataset):
         self.transform = transform
                     
     def __len__(self):
-        return len(self.nii_dir) * self.nii_per_dir * num_slices
+        return len(self.nii_dir) * self.nii_per_dir *self.num_slices
     
     def __get_img__(self, img_name):
         """
@@ -50,9 +50,9 @@ class MRIDataset(Dataset):
             if i == 1:
                 
                 #####################################################################
-                seg = self.__get_img__(path)[]
+                seg = self.__get_img__(path)[:,:,slice_idx]
             else:
-                mri_data.append(self.__get_img__(path))
+                mri_data.append(self.__get_img__(path)[:,:,slice_idx])
         sample = {'mri_data': np.asarray(mri_data), 'seg': np.asarray(seg)}
 
         if self.transform:

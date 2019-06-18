@@ -13,7 +13,7 @@ from dataset import MRIDataset, ToTensor
 
 if __name__ == "__main__":
     
-    dirs = '/home/hilkert/Dokumente/Uni/DeepVision/Project/05Data/BraTS/MICCAI_BraTS_2018_Data_Training/HGG/'
+    dirs = '/export/home/dv/dv002/DL/project/DeepVision/dataset_pattern/'
     idc = np.arange(len(glob.glob(dirs + '*')))
     mri_dataset = MRIDataset(dirs, idc, transform=ToTensor())
     datalength = len(mri_dataset)
@@ -31,8 +31,6 @@ if __name__ == "__main__":
         
         # get the inputs
         inputs = data['mri_data'].to(device)
-        segs = data['seg'].type(torch.LongTensor).to(device)
+        segs = data['seg'].to(device)
         print(segs.size())
-        plt.imshow(segs)
-        for seg in segs:
-            plt.imshow(seg)
+
