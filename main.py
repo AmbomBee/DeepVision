@@ -5,32 +5,25 @@ import numpy as np
 import cv2
 import torch
 from tqdm.auto import tqdm
+import time
 
 import utils
-from dataset import MRIDataset, ToTensor
+#from dataset import MRIDataset, ToTensor
+from train import train
 
-
+torch.backends.cudnn.deterministic = False
+torch.backends.cudnn.benchmark = False
+torch.manual_seed(1)
+np.random.seed(1)
 
 if __name__ == "__main__":
+    start = time.time()
     
-    dirs = '/export/home/dv/dv002/DL/project/DeepVision/dataset_pattern/'
-    idc = np.arange(len(glob.glob(dirs + '*')))
-    mri_dataset = MRIDataset(dirs, idc, transform=ToTensor())
-    datalength = len(mri_dataset)
-    batch_size = 1
-    device = torch.device('cuda:0' 
-                        if torch.cuda.is_available() else 'cpu')
-    num_GPU = torch.cuda.device_count()
-    if  num_GPU > 1:
-        print('Let us use ', num_GPU, ' GPUs!')
-    dataloader = utils.get_dataloader(mri_dataset, batch_size, num_GPU)
+    cycle_num = 0
+    plotter = utils.VisdomLinePlotter(env_name='Plots')
+    dirs = '/media/hilkert/Hilkert/DeepVision/05Data/BraTS/MICCAI_BraTS_2018_Data_Training/HGG/'
+    path_to_net = '/media/hilkert/Hilkert/DeepVision/06Network/'
+    train(cycle_num, dirs, path_to_net, plotter)
     
-    for i, data in tqdm(enumerate(dataloader), desc='Dataiteration'):
-        if i % 500 == 0:
-            print('Number of Iteration [{}/{}]'.format(i+1, datalength // batch_size))
-        
-        # get the inputs
-        inputs = data['mri_data'].to(device)
-        segs = data['seg'].to(device)
-        print(segs.size())
-
+    print('Whole run took ', time.time()-start)
+    print('Done!')

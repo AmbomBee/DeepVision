@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class conv_block(nn.Module):
-    def __init__(self,ch_in,ch_out):
+    def __init__(self, ch_in, ch_out):
         super(conv_block,self).__init__()
         self.conv = nn.Sequential(
             nn.Conv2d(ch_in, ch_out, kernel_size=3, stride=1, bias=True),
@@ -34,7 +34,7 @@ class up_conv(nn.Module):
         return x
         
 class U_Net(nn.Module):
-    def __init__(self,img_ch=4,output_ch=3):
+    def __init__(self,img_ch=4,output_ch=1):
         super(U_Net,self).__init__()
         
         self.Maxpool = nn.MaxPool2d(kernel_size=2,stride=2)
@@ -62,22 +62,29 @@ class U_Net(nn.Module):
 
     def forward(self,x):
         # encoding path
+        print('x: ', x.size())
         x1 = self.Conv1(x)
+        print('x1: ', x1.size())
 
         x2 = self.Maxpool(x1)
         x2 = self.Conv2(x2)
+        print('x2: ', x2.size())
         
         x3 = self.Maxpool(x2)
         x3 = self.Conv3(x3)
+        print('x3: ', x3.size())
 
         x4 = self.Maxpool(x3)
         x4 = self.Conv4(x4)
+        print('x4: ', x4.size())
 
         x5 = self.Maxpool(x4)
         x5 = self.Conv5(x5)
+        print('x5: ', x5.size())
 
         # decoding + concat path
         d5 = self.Up5(x5)
+        print('d5: ', d5.size())
         d5 = torch.cat((x4,d5),dim=1)
         
         d5 = self.Up_conv5(d5)
