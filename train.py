@@ -46,6 +46,7 @@ def train(cycle_num, dirs, path_to_net, plotter, batch_size=2, test_split=0.3, r
        
         sigmoid = nn.Sigmoid()
         criterion = nn.BCELoss()
+    
         if cycle_num % 2 == 0:
             optimizer = optim.SGD(net.parameters(), lr=learning_rate, 
                                       momentum=momentum)
@@ -83,6 +84,7 @@ def train(cycle_num, dirs, path_to_net, plotter, batch_size=2, test_split=0.3, r
                    
                 if phase == 'train':
                     # Set model to training mode
+
                     net.train(True)
                     
                 elif phase == 'val':
@@ -127,6 +129,10 @@ def train(cycle_num, dirs, path_to_net, plotter, batch_size=2, test_split=0.3, r
                     print('max pred: ', prediction.max())
                     loss = criterion(prediction, segmentations)
 
+                    # Compute the loss based on the predictions and 
+                    # actual segmentation
+                    loss = criterion(outputs, segmentations)
+
                     # backward + optimize only if in training phase
                     if phase == 'train':
                         # Backpropagate the loss
@@ -140,6 +146,7 @@ def train(cycle_num, dirs, path_to_net, plotter, batch_size=2, test_split=0.3, r
                     running_loss += loss.item()
                     rl_mini += loss.item()
 
+<<<<<<< HEAD
                     running_acc += torch.sum(prediction == segmentations.data).item() #IS THAT CORRECT???????!!!!!!!!!!!!!!!!!!!!!!!!
                     ra_mini += torch.sum(prediction == segmentations.data).item()
                     # print loss and acc and save net every 100 mini-batches
@@ -163,8 +170,7 @@ def train(cycle_num, dirs, path_to_net, plotter, batch_size=2, test_split=0.3, r
 
                         if phase == 'val':
                             plotter.plot('loss', 'val', 'itr', 'Class Loss', (epoch+1)*i,loss_av)
-                            plotter.plot('acc', 'val', 'itr', 'Class Acc', (epoch+1)*i,acc_av)
-                            
+                            plotter.plot('acc', 'val', 'itr', 'Class Acc', (epoch+1)*i,acc_av)                         
                     
                     
                 end = time.time()
