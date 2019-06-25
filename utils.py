@@ -26,22 +26,6 @@ def show_image(img, ctype):
     plt.axis('off')
     plt.show()
     
-class VisdomLinePlotter(object):
-    """Plots to Visdom"""
-    def __init__(self, env_name='main'):
-        self.viz = Visdom()
-        self.env = env_name
-        self.plots = {}
-    def plot(self, var_name, x_name, split_name, title_name, x, y):
-        if var_name not in self.plots:
-            self.plots[var_name] = self.viz.line(X=np.array([x,x]), Y=np.array([y,y]), env=self.env, opts=dict(
-                legend=[split_name],
-                title=title_name,
-                xlabel=x_name,
-                ylabel=var_name
-            ))
-        else:
-            self.viz.line(X=np.array([x]), Y=np.array([y]), env=self.env, win=self.plots[var_name], name=split_name, update = 'append')
 
 def get_train_cv_indices(indices, num_folds, random_state):
     """
@@ -105,3 +89,50 @@ def save_net(path, batch_size, epoch, cycle_num, train_indices,
                 'net' : net
                 }, filename)
         print('Network saved to ' + filename)
+
+def one_hot(GT):
+    '''
+        returns target by one-hot encoding
+        GT: b x W x H
+        output: b x c x W x H one hot representation
+    '''
+    batch_size = GT.shape[0]
+    W = GT.shape[1]
+    H = GT.shape[2]
+    one_hot = torch.empty([batch_size,4,W,H])
+    # iterate over batches
+    for i in range(batch_size):
+        for c in range(4):
+            one_hot[i][c]=(GT[i,:,:]==c)
+    return one_hot
+    
+def dice_loss(SR, GT, epsilon=1e-9):
+    '''
+        return dice loss for single class lable:
+        SR: segmentation result
+            batch_size x c x W x H
+        GT: ground truth
+            batch_size x c x W x H
+        epsilon: used for numerical stability to avoid devide by zero errors
+        Dice = 2*|Intersection(A,B)| / (|A| + |B|)
+    '''
+    # count memberwise product of SR and GT, then sum by axis (2,2)
+    numerator = 2*torch.sum(SR*GT, (2,2)) 
+    SR_n = torch.mul(SR,SR)
+    GT_n = torch.mul(GT,GT) 
+    denominator = torch.sum(SR_n + GT_n, (2,2))
+    # average dice over classes and batches
+    ret = 1 - torch.mean(numerator/(denominator+epsilon))
+    return torch.tensor(ret, requires_grad=True, dtype = torch.float)
+
+def IoU(SR, GT, epsilon = 1e-9):
+    '''
+        IoU = |Intersection(SR,GT)| / (|SR| + |GT| - |Intersection(SR,GT)|)
+    '''
+    numerator = torch.sum(SR*GT, (2,2)) 
+    SR_n = torch.mul(SR,SR)
+    GT_n = torch.mul(GT,GT) 
+    denominator = torch.sum(SR_n + GT_n, (2,2)) - numerator
+    return numerator / (denominator + epsilon)
+
+

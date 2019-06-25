@@ -7,20 +7,47 @@ def pad2d(x, n):
     return pad(x)
 
 class conv_block(nn.Module):
-    def __init__(self, ch_in, ch_out, p):
+    def __init__(self, ch_in, ch_out):
         super(conv_block,self).__init__()
+        
         self.conv = nn.Sequential(
-            nn.Conv2d(ch_in, ch_out, kernel_size=3, stride=1, padding=p, bias=True),
+            nn.Conv2d(ch_in, ch_out, kernel_size=3, stride=1, padding=1, bias=True),
             nn.BatchNorm2d(ch_out),
             nn.ReLU(inplace=True),
-            nn.Conv2d(ch_out, ch_out, kernel_size=3, stride=1, padding=p, bias=True),
+            nn.Conv2d(ch_out, ch_out, kernel_size=3, stride=1, padding=1, bias=True),
             nn.BatchNorm2d(ch_out),
             nn.ReLU(inplace=True)
         )
-
+        '''
+        self.c1=nn.Conv2d(ch_in, ch_out, kernel_size=3, stride=1, padding=p, bias=False)
+        self.b1=nn.BatchNorm2d(ch_out)
+        self.r1=nn.ReLU(inplace=True)
+        self.c2=nn.Conv2d(ch_out, ch_out, kernel_size=3, stride=1, padding=p, bias=False)
+        self.b2=nn.BatchNorm2d(ch_out)
+        self.r2=nn.ReLU(inplace=True)
+        '''
 
     def forward(self,x):
+        
         x = self.conv(x)
+        '''
+        print('x: ', x.min())
+        print('x: ', x.max())
+        x=self.c1(x)
+        print('c1(x): ', x.min())
+        print('c1(x): ', x.max())
+        x=self.b1(x)
+        print('b1(x): ', x.min())
+        print('b1(x): ', x.max())
+        x=self.r1(x)
+        #print('r1(x): ', x)
+        x=self.c2(x)
+        #print('c2(x): ', x)
+        x=self.b2(x)
+        #print('b2(x): ', x)
+        x=self.r2(x)
+        #print('r2(x): ', x)
+        '''
         return x
         
 class up_conv(nn.Module):
@@ -38,28 +65,28 @@ class up_conv(nn.Module):
         return x
         
 class U_Net(nn.Module):
-    def __init__(self,img_ch=4,output_ch=1):
+    def __init__(self,img_ch=4,output_ch=4):
         super(U_Net,self).__init__()
         
         self.Maxpool = nn.MaxPool2d(kernel_size=2,stride=2)
 
-        self.Conv1 = conv_block(ch_in=img_ch,ch_out=64, p=0)
-        self.Conv2 = conv_block(ch_in=64,ch_out=128, p=0)
-        self.Conv3 = conv_block(ch_in=128,ch_out=256, p=0)
-        self.Conv4 = conv_block(ch_in=256,ch_out=512, p=0)
-        self.Conv5 = conv_block(ch_in=512,ch_out=1024, p=1)
+        self.Conv1 = conv_block(ch_in=img_ch,ch_out=64)
+        self.Conv2 = conv_block(ch_in=64,ch_out=128)
+        self.Conv3 = conv_block(ch_in=128,ch_out=256)
+        self.Conv4 = conv_block(ch_in=256,ch_out=512)
+        self.Conv5 = conv_block(ch_in=512,ch_out=1024)
 
         self.Up5 = up_conv(ch_in=1024,ch_out=512)
-        self.Up_conv5 = conv_block(ch_in=1024, ch_out=512, p=1)
+        self.Up_conv5 = conv_block(ch_in=1024, ch_out=512)
 
         self.Up4 = up_conv(ch_in=512,ch_out=256)
-        self.Up_conv4 = conv_block(ch_in=512, ch_out=256, p=1)
+        self.Up_conv4 = conv_block(ch_in=512, ch_out=256)
         
         self.Up3 = up_conv(ch_in=256,ch_out=128)
-        self.Up_conv3 = conv_block(ch_in=256, ch_out=128, p=1)
+        self.Up_conv3 = conv_block(ch_in=256, ch_out=128)
         
         self.Up2 = up_conv(ch_in=128,ch_out=64)
-        self.Up_conv2 = conv_block(ch_in=128, ch_out=64, p=1)
+        self.Up_conv2 = conv_block(ch_in=128, ch_out=64)
 
         self.Conv_1x1 = nn.Conv2d(64,output_ch,kernel_size=1,stride=1,padding=0)
 
@@ -67,19 +94,35 @@ class U_Net(nn.Module):
     def forward(self,x):
         # encoding path
         #print('x: ', x.size())
+        #print(x)
+        #print('x max: ', x.max())
+        #print('x min: ', x.min())
         x1 = self.Conv1(x)
-        #print('x1: ', x1.size())
+        #print('x1 max: ', x1.max())
+        #print('x1 min: ', x1.min())
 
         x2 = self.Maxpool(x1)
+        #print('x1 max after maxpool: ', x2.max())
+        #print('x1 min after maxpool: ', x2.min())
         x2 = self.Conv2(x2)
+        #print('x2 max: ', x2.max())
+        #print('x2 min: ', x2.min())
         #print('x2: ', x2.size())
         
         x3 = self.Maxpool(x2)
+        #print('x2 max after maxpool: ', x3.max())
+        #print('x2 min after maxpool: ', x3.max())
         x3 = self.Conv3(x3)
+        #print('x3 min: ', x3.min())
+        #print('x3 min: ', x3.min())
         #print('x3: ', x3.size())
 
         x4 = self.Maxpool(x3)
+        #print('x3 max after maxpool: ', x4.max())
+        #print('x3 min after maxpool: ', x4.min())
         x4 = self.Conv4(x4)
+        #print('x4 max: ', x4.max())
+        #print('x4 min: ', x4.min())
         #print('x4: ', x4.size())
 
         x5 = self.Maxpool(x4)
@@ -97,7 +140,7 @@ class U_Net(nn.Module):
         d4 = self.Up4(d5)
         #print('d4: ', d4.size())
 
-        d4 = pad2d(d4, x3.shape[2]-d4.shape[2])
+        #d4 = pad2d(d4, x3.shape[2]-d4.shape[2])
         #print('d4 after padding: ', d4.size())
         d4 = torch.cat((x3,d4),dim=1)
         #print('d4 after cat: ', d4.size())
@@ -106,7 +149,7 @@ class U_Net(nn.Module):
 
         d3 = self.Up3(d4)
         #print('d3: ', d3.size())
-        d3 = pad2d(d3, x2.shape[2]-d3.shape[2])
+        #d3 = pad2d(d3, x2.shape[2]-d3.shape[2])
         d3 = torch.cat((x2,d3),dim=1)
         #print('d3 after cat: ', d3.size())
         d3 = self.Up_conv3(d3)
@@ -114,11 +157,11 @@ class U_Net(nn.Module):
 
         d2 = self.Up2(d3)
         #print('d2: ', d2.size())
-        d2 = pad2d(d2, x1.shape[2]-d2.shape[2])
+        #d2 = pad2d(d2, x1.shape[2]-d2.shape[2])
         d2 = torch.cat((x1,d2),dim=1)
         d2 = self.Up_conv2(d2)
         #print('d2: ', d2.size())
-        d2 = pad2d(d2, x.shape[2]-d2.shape[2])
+        #d2 = pad2d(d2, x.shape[2]-d2.shape[2])
 
         d1 = self.Conv_1x1(d2)
         #print('d1: ', d1.size())

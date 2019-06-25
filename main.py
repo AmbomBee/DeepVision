@@ -20,16 +20,17 @@ if __name__ == "__main__":
     start = time.time()
     
     cycle_num = 0
-    plotter = utils.VisdomLinePlotter(env_name='Plots')
 
     dirs = '/export/home/dv/dv002/DL/project/DeepVision/dataset_pattern/'
     path_to_net = '/export/home/dv/dv002/DL/project/DeepVision/Network/'
+    path_for_saving_SR = '/export/home/dv/dv002/DL/project/DeepVision/output_images/' 
+
     '''FOR ANN-SOPHIE'''
     '''
     dirs = '/media/hilkert/Hilkert/DeepVision/05Data/BraTS/MICCAI_BraTS_2018_Data_Training/HGG/'
     path_to_net = '/media/hilkert/Hilkert/DeepVision/06Network/'
     '''
-    train(cycle_num, dirs, path_to_net, plotter)
+    train(cycle_num, dirs, path_to_net, path_for_saving_SR)
     
     print('Whole run took ', time.time()-start)
     print('Done!')

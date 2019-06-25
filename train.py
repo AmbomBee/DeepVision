@@ -1,4 +1,6 @@
 from network import U_Net
+from utils import dice_loss
+from utils import one_hot
 import utils
 import dataset
 
@@ -10,10 +12,9 @@ import numpy as np
 import glob
 import time
 from tqdm.auto import tqdm
+import matplotlib.pyplot as plt
 
-
-def train(cycle_num, dirs, path_to_net, plotter, batch_size=2, test_split=0.3, random_state=666, epochs=5, 
-          learning_rate=0.001, momentum=0.9, num_folds=5):
+def train(cycle_num, dirs, path_to_net, path_for_saving_SR, batch_size=20, test_split=0.3, random_state=666, epochs=5, learning_rate=0.001, momentum=0.9, num_folds=5):
     """
     Applies training on the network 
     """
@@ -43,9 +44,7 @@ def train(cycle_num, dirs, path_to_net, plotter, batch_size=2, test_split=0.3, r
                   'GPUs!')
             net = nn.DataParallel(net)
         net.to(device)
-       
-        sigmoid = nn.Sigmoid()
-        criterion = nn.BCELoss()
+        
         if cycle_num % 2 == 0:
             optimizer = optim.SGD(net.parameters(), lr=learning_rate, 
                                       momentum=momentum)
@@ -89,10 +88,12 @@ def train(cycle_num, dirs, path_to_net, plotter, batch_size=2, test_split=0.3, r
                     # Set model to evaluate mode
                     net.train(False)  
                    
-                running_acc = 0.0
+                #running_acc = 0.0
                 running_loss = 0.0
-                ra_mini = 0.0
+                #ra_mini = 0.0
                 rl_mini = 0.0
+                r_IoU = 0.0
+                r_IoU_mini = 0.0
                 # Iterate over data.
                 for i, data in tqdm(enumerate(dataloaders[phase]), desc='Dataiteration'):
                     if i % 500 == 0:
@@ -101,32 +102,19 @@ def train(cycle_num, dirs, path_to_net, plotter, batch_size=2, test_split=0.3, r
                     # get the inputs
                     inputs = data['mri_data'].type(torch.FloatTensor).to(device)
                     segmentations = data['seg'].type(torch.FloatTensor).to(device)
+                    segmentations = one_hot(segmentations)
                     
                     # Clear all accumulated gradients
                     optimizer.zero_grad()
 
                     # Predict classes using inputs and coords from the train set
                     outputs = net(inputs)
-                    print('outputs: ', outputs.data)
-                    outputs = outputs.view(batch_size, -1)
-                    #print('outputs after flatten: ', outputs.size())
-                    segmentations = segmentations.view(batch_size, -1)
-                    #print('segmentations after flatten: ', segmentations.size())
                     # Compute the loss based on the predictions and 
                     # actual segmentation
                     
-                    #print('outputs shape: ', outputs.size())
-                    #print('segmentation type: ', type(segmentations))
-                    #print('segmentation shape: ', segmentations.size())
-                    #print('segmentation dtype: ', segmentations.type())
-                    #print('outputs dtype: ', outputs.type())
-                    print('min outputs: ', outputs.min())
-                    print('max outputs: ', outputs.max())
-                    prediction = sigmoid(outputs)
-                    print('min pred: ', prediction.min())
-                    print('max pred: ', prediction.max())
-                    loss = criterion(prediction, segmentations)
-
+                    softmax = nn.Softmax2d()
+                    prediction = softmax(outputs) 
+                    loss = dice_loss(prediction, segmentations)
                     # backward + optimize only if in training phase
                     if phase == 'train':
                         # Backpropagate the loss
@@ -137,35 +125,36 @@ def train(cycle_num, dirs, path_to_net, plotter, batch_size=2, test_split=0.3, r
                         optimizer.step()
                     # track loss over epochs, mini-batches (500) and 
                     # per iteration
+                    iou = utils.IoU(predictions, segmentations)
+                    r_IoU += iou
+                    r_IoU_mini += iou
                     running_loss += loss.item()
                     rl_mini += loss.item()
 
-                    running_acc += torch.sum(prediction == segmentations.data).item() #IS THAT CORRECT???????!!!!!!!!!!!!!!!!!!!!!!!!
+                    
+                    running_acc += torch.sum(prediction == segmentations.data).item()
                     ra_mini += torch.sum(prediction == segmentations.data).item()
                     # print loss and acc and save net every 100 mini-batches
                     if i % 100 == 0:
                         loss_av = rl_mini / (batch_size*100)
-                        acc_av = ra_mini / (batch_size*100)
+                        #acc_av = ra_mini / (batch_size*100)
                         print(phase, ' [{}, {}] loss: {}'.format(epoch + 1, i + 1, 
                                                          loss_av))
                         
-                        print(phase, ' [{}, {}] acc: {}'.format(epoch + 1, i + 1, 
-                                                         acc_av))
                         rl_mini = 0.0
                         ra_mini = 0.0
 
-                        utils.save_net(path_to_net, batch_size, epoch, cycle_num, 
-                               train_indices, val_indices, test_indices, net, 
-                               optimizer, criterion, iter_num=i)
-                        if phase == 'train':
-                            plotter.plot('loss', 'itr', 'train', 'Class Loss', (epoch+1)*i,loss_av)
-                            plotter.plot('acc', 'train', 'itr', 'Class Acc', (epoch+1)*i,acc_av)
-
-                        if phase == 'val':
-                            plotter.plot('loss', 'val', 'itr', 'Class Loss', (epoch+1)*i,loss_av)
-                            plotter.plot('acc', 'val', 'itr', 'Class Acc', (epoch+1)*i,acc_av)
-                            
-                    
+                        name_of_file = "Epoch{}_iter{}.png".format(epoch, i)
+                        
+                        fig, axs = plt.subplots(1, 2, constrained_layout=True)
+                        fig.suptitle("SR and GT for {} iteration".format(i+1))
+                        axs[0].set_title("segmentation result")
+                        axs[1].set_title("ground truth")
+                        plt.savefig(path_for_saving_SR + name_of_file)
+                        
+                        fig = plt.figure()
+                        a = fig.add_subplot(1,2,1)
+                        a.set_title("segmentation result")
                     
                 end = time.time()
                 print('Phase {} took {} s for whole {}set!'.format(phase, end-start, 
@@ -188,8 +177,3 @@ def train(cycle_num, dirs, path_to_net, plotter, batch_size=2, test_split=0.3, r
                 
             # Call the learning rate adjustment function after every epoch
             scheduler.step(running_loss)
-        
-        # Save net after every cross validation cycle
-        utils.save_net(path_to_net, batch_size, epochs, cycle_num, 
-                       train_indices, val_indices, test_indices, net, 
-                       optimizer, criterion)
