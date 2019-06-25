@@ -6,11 +6,21 @@ import torch
 from sklearn.model_selection import KFold
 import numpy as np
 from torch.utils.data import DataLoader
-import scipy.misc 
-from visdom import Visdom
+import scipy.misc
 
 import matplotlib as mpl;mpl.use('agg')
 
+def save_output(path, SR, GT):
+    torch.save({'SR': SR, 'GT': GT}, path + '.pt')
+    
+def plot_history(path, loss_history, IoU_history):
+    fig, ax = plt.subplots((1,2))
+    ax[0].plot(loss_history)
+    ax[0].set_title('Loss')
+    ax[1].plot(IoU_history)
+    ax[1].set_title('IoU')
+    plt.savefig(path)
+    
 def load_img(filename):
     img = nib.load(filename)
     fdata = img.get_fdata()
@@ -26,7 +36,6 @@ def show_image(img, ctype):
     plt.axis('off')
     plt.show()
     
-
 def get_train_cv_indices(indices, num_folds, random_state):
     """
     Creates a generator for trainset_indices and test_indices
@@ -43,7 +52,6 @@ def get_test_indices(indices, test_split,):
     test_indices, train_indices = indices[:split], indices[split:]
     return test_indices, train_indices
 
-
 def get_dataloader(dataset, batch_size, num_GPU):
     """
     Returns the specific dataloader to the batch size
@@ -51,9 +59,8 @@ def get_dataloader(dataset, batch_size, num_GPU):
     return torch.utils.data.DataLoader(dataset, batch_size=batch_size, 
                                        shuffle=True, num_workers=0*num_GPU)
 
-
 def save_net(path, batch_size, epoch, cycle_num, train_indices, 
-             val_indices, test_indices, net, optimizer, criterion, iter_num=None):
+             val_indices, test_indices, net, optimizer, iter_num=None):
     """
     Saves the networks specific components and the network itselfs 
     to a given path
@@ -70,7 +77,6 @@ def save_net(path, batch_size, epoch, cycle_num, train_indices,
                 'test_indices': test_indices,
                 'net_state_dict': net.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
-                'criterion': criterion,
                 'net' : net
                 }, filename)
         print('Network saved to ' + filename)
@@ -85,14 +91,13 @@ def save_net(path, batch_size, epoch, cycle_num, train_indices,
                 'test_indices': test_indices,
                 'net_state_dict': net.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
-                'criterion': criterion,
                 'net' : net
                 }, filename)
         print('Network saved to ' + filename)
 
 def one_hot(GT):
     '''
-        returns target by one-hot encoding
+        Returns target by one-hot encoding
         GT: b x W x H
         output: b x c x W x H one hot representation
     '''
@@ -108,7 +113,7 @@ def one_hot(GT):
     
 def dice_loss(SR, GT, epsilon=1e-9):
     '''
-        return dice loss for single class lable:
+        Return dice loss for single class lable:
         SR: segmentation result
             batch_size x c x W x H
         GT: ground truth
@@ -134,5 +139,3 @@ def IoU(SR, GT, epsilon = 1e-9):
     GT_n = torch.mul(GT,GT) 
     denominator = torch.sum(SR_n + GT_n, (2,2)) - numerator
     return numerator / (denominator + epsilon)
-
-

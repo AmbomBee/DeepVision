@@ -4,8 +4,6 @@ import nibabel as nib
 import numpy as np
 import glob
 
-#from matplotlib import pyplot as plt
-
 class MRIDataset(Dataset):
     """
     MRI Data set
@@ -14,11 +12,10 @@ class MRIDataset(Dataset):
     def __init__(self, img_dir, idc, num_slices=155, transform=None):
         """
         Args:
-            label_file (string): Path to the csv file with labels.
-            nii_dir (string): directory all the nii files (fMRI data).
-            random_state (object of np.random.RandomState class)
-            idc (list of ints): list of indices used for training, 
-                validation or testing
+            img_dir (string): path to data set directories
+            idc (list of int): indice list
+            num_slices - default (int): number of slices in MRI Volume
+            transform - default (class): class for transformation to tensor 
         """
         
         self.idc = idc
@@ -54,7 +51,10 @@ class MRIDataset(Dataset):
             else:
                 mri_data.append(self.__get_img__(path)[:,:,slice_idx])
         
-        sample = {'mri_data': np.asarray(mri_data), 'seg': np.asarray(seg)}
+        # return also path to subject directory for saving the output 
+        # to the specific path
+        sample = {'mri_data': np.asarray(mri_data), 'seg': np.asarray(seg),
+                  'subject_slice_path': self.nii_dir[sub_idx] + slice_idx}
 
         if self.transform:
             sample = self.transform(sample)
@@ -68,5 +68,7 @@ class ToTensor(object):
     """
     def __call__(self, sample):
         mri_data, seg = sample['mri_data'], sample['seg']
+        path = sample['subject_path']
         return {'mri_data': torch.from_numpy(mri_data),
-                'seg': torch.from_numpy(seg)}
+                'seg': torch.from_numpy(seg),
+                'subject_slice_path': path}
