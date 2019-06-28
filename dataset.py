@@ -15,13 +15,13 @@ class MRIDataset(Dataset):
             img_dir (string): path to data set directories
             idc (list of int): indice list
             num_slices - default (int): number of slices in MRI Volume
-            transform - default (class): class for transformation to tensor 
+            transform - default (callable): for transformation to tensor 
         """
         
         self.idc = idc
         self.img_dir = img_dir
         self.nii_dir = np.asarray(glob.glob(self.img_dir + '/*'))[self.idc]
-        self.nii_per_dir = len(glob.glob(self.nii_dir[0] + '/*'))
+        self.nii_per_dir = len(glob.glob(self.nii_dir[0] + '/*.npy'))
         self.num_slices = num_slices
         self.transform = transform
                     
@@ -32,8 +32,7 @@ class MRIDataset(Dataset):
         """
         Returns the segmentation image
         """
-        img = nib.load(img_name)
-        img_data = img.get_fdata()
+        img_data = np.load(img_name, mmap_mode='r')
         return img_data
     
     def __getitem__(self, idx):
@@ -43,7 +42,7 @@ class MRIDataset(Dataset):
         # indices to subject idx
         sub_idx = idx // (self.nii_per_dir * self.num_slices)
         slice_idx = (idx // self.nii_per_dir) % self.num_slices
-        path_nii = glob.glob(self.nii_dir[sub_idx] + '/*')
+        path_nii = glob.glob(self.nii_dir[sub_idx] + '/*.npy')
         mri_data = []
         for i, path in enumerate(path_nii):
             if i == 1:
@@ -54,7 +53,7 @@ class MRIDataset(Dataset):
         # return also path to subject directory for saving the output 
         # to the specific path
         sample = {'mri_data': np.asarray(mri_data), 'seg': np.asarray(seg),
-                  'subject_slice_path': self.nii_dir[sub_idx] + slice_idx}
+                  'subject_slice_path': self.nii_dir[sub_idx] + str(slice_idx)}
 
         if self.transform:
             sample = self.transform(sample)

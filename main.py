@@ -4,7 +4,6 @@ from matplotlib import pyplot as plt
 import numpy as np
 import cv2
 import torch
-from tqdm.auto import tqdm
 import time
 
 import utils
@@ -24,8 +23,8 @@ if __name__ == "__main__":
     # cycle_num % 2 != 0 --> Adam
     cycle_num = 0
 
-    dirs = '/export/home/dv/dv002/DL/project/DeepVision/dataset_pattern/'
-    path_to_net = '/export/home/dv/dv002/DL/project/DeepVision/Network/' 
+    dirs = '/beegfs/work/ws/hd_en396-fMRI_Data-0/BraTS/Data/HGG/'
+    path_to_net = '/beegfs/work/ws/hd_en396-fMRI_Data-0/01Eva/' 
 
     train(cycle_num, dirs, path_to_net)
     

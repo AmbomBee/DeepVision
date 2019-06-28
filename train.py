@@ -1,5 +1,6 @@
 from utils import *
 import dataset
+from network import U_Net
 
 import torch
 import torch.nn as nn
@@ -8,10 +9,9 @@ from torch.optim.lr_scheduler import MultiStepLR, ReduceLROnPlateau
 import numpy as np
 import glob
 import time
-from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
 
-def train(cycle_num, dirs, path_to_net, batch_size=20, test_split=0.3, 
+def train(cycle_num, dirs, path_to_net, batch_size=16, test_split=0.3, 
           random_state=666, epochs=5, learning_rate=0.001, momentum=0.9, 
           num_folds=5, num_slices=155):
     """
@@ -32,8 +32,8 @@ def train(cycle_num, dirs, path_to_net, batch_size=20, test_split=0.3,
     print('Setting started', flush=True)
     
     # Creating data indices
-    # arange len of list of subject dirs * number of slices per volume
-    indices = np.arange(len(glob.glob(dirs + '*')) * num_slices)
+    # arange len of list of subject dirs 
+    indices = np.arange(len(glob.glob(dirs + '*')))
     
     test_indices, trainset_indices = get_test_indices(indices, 
                                                      test_split)                                                    
@@ -62,7 +62,7 @@ def train(cycle_num, dirs, path_to_net, batch_size=20, test_split=0.3,
         
         scheduler = ReduceLROnPlateau(optimizer)
 
-        print('cv cycle number: ', cycle_num, , flush=True)
+        print('cv cycle number: ', cycle_num, flush=True)
         start = time.time()
         print('Start Train and Val loading', flush=True)
         
@@ -76,10 +76,10 @@ def train(cycle_num, dirs, path_to_net, batch_size=20, test_split=0.3,
                                                batch_size, num_GPU),
                       'val': get_dataloader(MRIDataset_val, 
                                             batch_size, num_GPU)}
-        print('Train and Val loading took: ', time.time()-start, , flush=True)
+        print('Train and Val loading took: ', time.time()-start, flush=True)
         loss_history = []
         IoU_history = []
-        for epoch in tqdm(range(epochs), desc='Epochs'):
+        for epoch in range(epochs):
             print('Epoch: ', epoch+1, flush=True)
             # Each epoch has a training and validation phase
             for phase in ['train', 'val']:
@@ -97,15 +97,15 @@ def train(cycle_num, dirs, path_to_net, batch_size=20, test_split=0.3,
                 running_IoU = 0.0
                 r_IoU_mini = 0.0
                 # Iterate over data.
-                for i, data in tqdm(enumerate(dataloaders[phase]), desc='Dataiteration'):
-                    if i % 2000 == 0:
+                for i, data in enumerate(dataloaders[phase]):
+                    if i % 10 == 0:
                         print('Number of Iteration [{}/{}]'.format(i+1, 
                         int(datalengths[phase]/batch_size)), flush=True)
                     
                     # get the inputs
                     inputs = data['mri_data'].type(torch.FloatTensor).to(device)
-                    segmentations = data['seg'].type(torch.FloatTensor).to(device)
-                    segmentations = one_hot(segmentations)
+                    segmentations = data['seg'].type(torch.FloatTensor)
+                    segmentations = one_hot(segmentations).to(device)
                     subject_slice_path = data['subject_slice_path']
                     # Clear all accumulated gradients
                     optimizer.zero_grad()
@@ -114,50 +114,53 @@ def train(cycle_num, dirs, path_to_net, batch_size=20, test_split=0.3,
                     # Compute the loss based on the predictions and 
                     # actual segmentation
                     softmax = nn.Softmax2d()
-                    prediction = softmax(outputs) 
+                    prediction = softmax(outputs)
                     loss = dice_loss(prediction, segmentations)
                     # backward + optimize only if in training phase
                     if phase == 'train':
                         # Backpropagate the loss
-                        loss.backward()
+                        loss.backward(retain_graph=True)
                         # Adjust parameters according to the computed 
                         # gradients 
                         # -- weight update
                         optimizer.step()
                     # track loss and IoU over epochs and all 500 iterations
-                    iou = IoU(predictions, segmentations)
+                    iou = IoU(prediction, segmentations).item()
                     running_IoU += iou
                     r_IoU_mini += iou
                     running_loss += loss.item()
                     rl_mini += loss.item()
-                    if i % 1000 == 0:
-                        loss_av = rl_mini / (batch_size*1000)
-                        IoU_av = r_IoU_mini / (batch_size*1000)
+                    if i % 100 == 0:
+                        loss_av = rl_mini / (batch_size*100)
+                        IoU_av = r_IoU_mini / (batch_size*100)
                         print(phase, ' [{}, {}] loss: {}'.format(epoch + 1, i + 1, 
-                                                         loss_av))
+                                                         loss_av), flush=True)
                         print(phase, ' [{}, {}] IoU: {}'.format(epoch + 1, i + 1, 
-                                                         IoU_av))
+                                                         IoU_av), flush=True)
                         loss_history.append(loss_av)
                         IoU_history.append(IoU_av)
                         rl_mini = 0.0
                         r_IoU_mini = 0.0
                         save_net(path_to_net, batch_size, epoch, cycle_num, train_indices, 
                                  val_indices, test_indices, net, optimizer, iter_num=i)
-                        save_output(subject_slice_path, outputs, segmentations)
+                        save_output(i, path_to_net, subject_slice_path, 
+                                    outputs.detach().cpu().numpy(), 
+                                    segmentations.detach().cpu().numpy())
                         plot_history(path_to_net, loss_history, IoU_history)
+                    del loss
                 print('Phase {} took {} s for whole {}set!'.format(phase, 
-                      time.time()-start, phase))
+                      time.time()-start, phase), flush=True)
                 # Compute the average IoU and loss over all inputs
                 running_loss = running_loss / datalengths[phase]
                 running_IoU = running_IoU / datalengths[phase]
                 if phase == 'train':
                     print ('Epoch [{}/{}], Train_loss: {:.4f}, Train_IoU: {:.2f}' 
                            .format(epoch+1, epochs, running_loss, 
-                                   running_IoU))
+                                   running_IoU), flush=True)
                 elif phase == 'val':
                     print ('Epoch [{}/{}], Val_loss: {:.4f}, Val_IoU: {:.2f}' 
                            .format(epoch+1, epochs, running_loss, 
-                                   running_IoU))
+                                   running_IoU), flush=True)
             # Call the learning rate adjustment function after every epoch
             scheduler.step(running_loss)
     # save network after training

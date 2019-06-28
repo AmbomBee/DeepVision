@@ -62,7 +62,6 @@ class U_Net(nn.Module):
 
 
     def forward(self,x):
-        
         x1 = self.Conv1(x)
         x2 = self.Maxpool(x1)
         x2 = self.Conv2(x2)

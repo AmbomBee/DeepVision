@@ -8,18 +8,17 @@ import numpy as np
 from torch.utils.data import DataLoader
 import scipy.misc
 
-import matplotlib as mpl;mpl.use('agg')
-
-def save_output(path, SR, GT):
-    torch.save({'SR': SR, 'GT': GT}, path + '.pt')
+def save_output(i, path_to_net, path, SR, GT):
+    torch.save({'SR': SR, 'GT': GT, 'path': path}, path_to_net + 'output' + str(i) + '.pt')
     
-def plot_history(path, loss_history, IoU_history):
-    fig, ax = plt.subplots((1,2))
+def plot_history(path_to_net, loss_history, IoU_history):
+    fig, ax = plt.subplots(1,2)
     ax[0].plot(loss_history)
     ax[0].set_title('Loss')
     ax[1].plot(IoU_history)
     ax[1].set_title('IoU')
-    plt.savefig(path)
+    plt.savefig(path_to_net + '.svg')
+    plt.close()
     
 def load_img(filename):
     img = nib.load(filename)
@@ -122,10 +121,10 @@ def dice_loss(SR, GT, epsilon=1e-9):
         Dice = 2*|Intersection(A,B)| / (|A| + |B|)
     '''
     # count memberwise product of SR and GT, then sum by axis (2,2)
-    numerator = 2*torch.sum(SR*GT, (2,2)) 
+    numerator = 2*torch.sum(torch.mul(SR,GT), (2,3)) 
     SR_n = torch.mul(SR,SR)
     GT_n = torch.mul(GT,GT) 
-    denominator = torch.sum(SR_n + GT_n, (2,2))
+    denominator = torch.sum(SR_n + GT_n, (2,3))
     # average dice over classes and batches
     ret = 1 - torch.mean(numerator/(denominator+epsilon))
     return torch.tensor(ret, requires_grad=True, dtype = torch.float)
@@ -134,8 +133,8 @@ def IoU(SR, GT, epsilon = 1e-9):
     '''
         IoU = |Intersection(SR,GT)| / (|SR| + |GT| - |Intersection(SR,GT)|)
     '''
-    numerator = torch.sum(SR*GT, (2,2)) 
+    numerator = torch.sum(torch.mul(SR,GT), (2,3)) 
     SR_n = torch.mul(SR,SR)
     GT_n = torch.mul(GT,GT) 
-    denominator = torch.sum(SR_n + GT_n, (2,2)) - numerator
-    return numerator / (denominator + epsilon)
+    denominator = torch.sum(torch.add(SR_n, GT_n), (2,3)) - numerator
+    return torch.mean(numerator / (denominator + epsilon))
