@@ -12,7 +12,7 @@ import time
 import matplotlib.pyplot as plt
 
 def train(cycle_num, dirs, path_to_net, batch_size=16, test_split=0.3, 
-          random_state=666, epochs=5, learning_rate=0.001, momentum=0.9, 
+          random_state=666, epochs=5, learning_rate=0.0001, momentum=0.9, 
           num_folds=5, num_slices=155):
     """
     Applies training on the network
@@ -60,7 +60,7 @@ def train(cycle_num, dirs, path_to_net, batch_size=16, test_split=0.3,
         else: 
             optimizer = optim.Adam(net.parameters(), lr=learning_rate)
         
-        scheduler = ReduceLROnPlateau(optimizer)
+        scheduler = ReduceLROnPlateau(optimizer, threshold=1e-6, patience=0)
 
         print('cv cycle number: ', cycle_num, flush=True)
         start = time.time()
@@ -77,8 +77,11 @@ def train(cycle_num, dirs, path_to_net, batch_size=16, test_split=0.3,
                       'val': get_dataloader(MRIDataset_val, 
                                             batch_size, num_GPU)}
         print('Train and Val loading took: ', time.time()-start, flush=True)
-        loss_history = []
-        IoU_history = []
+        # make loss and acc history for train and val separatly
+        loss_history_train = []
+        IoU_history_train = []
+        loss_history_val = []
+        IoU_history_val = []
         for epoch in range(epochs):
             print('Epoch: ', epoch+1, flush=True)
             # Each epoch has a training and validation phase
@@ -130,15 +133,25 @@ def train(cycle_num, dirs, path_to_net, batch_size=16, test_split=0.3,
                     r_IoU_mini += iou
                     running_loss += loss.item()
                     rl_mini += loss.item()
-                    if i % 100 == 0:
+                    if (i + 1) % 100 == 0:
                         loss_av = rl_mini / (batch_size*100)
                         IoU_av = r_IoU_mini / (batch_size*100)
                         print(phase, ' [{}, {}] loss: {}'.format(epoch + 1, i + 1, 
                                                          loss_av), flush=True)
                         print(phase, ' [{}, {}] IoU: {}'.format(epoch + 1, i + 1, 
                                                          IoU_av), flush=True)
-                        loss_history.append(loss_av)
-                        IoU_history.append(IoU_av)
+                        if phase == 'train':
+                            loss_history_train.append(loss_av)
+                            IoU_history_train.append(IoU_av)
+                            plot_history(phase, path_to_net, 
+                                         loss_history_train, 
+                                         IoU_history_train)
+                        if phase == 'val':
+                            loss_history_val.append(loss_av)
+                            IoU_history_val.append(IoU_av)
+                            plot_history(phase, path_to_net, 
+                                         loss_history_val, 
+                                         IoU_history_val)
                         rl_mini = 0.0
                         r_IoU_mini = 0.0
                         save_net(path_to_net, batch_size, epoch, cycle_num, train_indices, 
@@ -146,7 +159,6 @@ def train(cycle_num, dirs, path_to_net, batch_size=16, test_split=0.3,
                         save_output(i, path_to_net, subject_slice_path, 
                                     outputs.detach().cpu().numpy(), 
                                     segmentations.detach().cpu().numpy())
-                        plot_history(path_to_net, loss_history, IoU_history)
                     del loss
                 print('Phase {} took {} s for whole {}set!'.format(phase, 
                       time.time()-start, phase), flush=True)

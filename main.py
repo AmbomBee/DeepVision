@@ -24,7 +24,7 @@ if __name__ == "__main__":
     cycle_num = 0
 
     dirs = '/beegfs/work/ws/hd_en396-fMRI_Data-0/BraTS/Data/HGG/'
-    path_to_net = '/beegfs/work/ws/hd_en396-fMRI_Data-0/01Eva/' 
+    path_to_net = '/beegfs/work/ws/hd_en396-fMRI_Data-0/01Eva/Cycle_num' + str(cycle_num) + '/' 
 
     train(cycle_num, dirs, path_to_net)
     

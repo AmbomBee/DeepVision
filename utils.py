@@ -11,15 +11,15 @@ import scipy.misc
 def save_output(i, path_to_net, path, SR, GT):
     torch.save({'SR': SR, 'GT': GT, 'path': path}, path_to_net + 'output' + str(i) + '.pt')
     
-def plot_history(path_to_net, loss_history, IoU_history):
+def plot_history(phase, epoch, itr, path_to_net, loss_history, IoU_history):
     fig, ax = plt.subplots(1,2)
     ax[0].plot(loss_history)
-    ax[0].set_title('Loss')
+    ax[0].set_title(phase + ' Loss in ' + str(epoch) + '_' + str(itr))
     ax[1].plot(IoU_history)
-    ax[1].set_title('IoU')
-    plt.savefig(path_to_net + '.svg')
+    ax[1].set_title(phase + ' IoU in ' + str(epoch) + '_' + str(itr))
+    plt.savefig(path_to_net + phase + 'History.svg')
     plt.close()
-    
+        
 def load_img(filename):
     img = nib.load(filename)
     fdata = img.get_fdata()
