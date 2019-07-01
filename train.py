@@ -117,8 +117,8 @@ def train(cycle_num, dirs, path_to_net, batch_size=16, test_split=0.3,
                     # Compute the loss based on the predictions and 
                     # actual segmentation
                     softmax = nn.Softmax2d()
-                    prediction = softmax(outputs)
-                    loss = dice_loss(prediction, segmentations)
+                    predictions = softmax(outputs)
+                    loss = dice_loss(predictions, segmentations)
                     # backward + optimize only if in training phase
                     if phase == 'train':
                         # Backpropagate the loss
@@ -128,14 +128,14 @@ def train(cycle_num, dirs, path_to_net, batch_size=16, test_split=0.3,
                         # -- weight update
                         optimizer.step()
                     # track loss and IoU over epochs and all 500 iterations
-                    iou = IoU(prediction, segmentations).item()
+                    iou = IoU(predictions, segmentations).item()
                     running_IoU += iou
                     r_IoU_mini += iou
                     running_loss += loss.item()
                     rl_mini += loss.item()
-                    if (i + 1) % 100 == 0:
-                        loss_av = rl_mini / (batch_size*100)
-                        IoU_av = r_IoU_mini / (batch_size*100)
+                    if (i + 1) % 10 == 0:
+                        loss_av = rl_mini / (batch_size*10)
+                        IoU_av = r_IoU_mini / (batch_size*10)
                         print(phase, ' [{}, {}] loss: {}'.format(epoch + 1, i + 1, 
                                                          loss_av), flush=True)
                         print(phase, ' [{}, {}] IoU: {}'.format(epoch + 1, i + 1, 
@@ -143,13 +143,13 @@ def train(cycle_num, dirs, path_to_net, batch_size=16, test_split=0.3,
                         if phase == 'train':
                             loss_history_train.append(loss_av)
                             IoU_history_train.append(IoU_av)
-                            plot_history(phase, path_to_net, 
+                            plot_history(phase, epoch, i, path_to_net, 
                                          loss_history_train, 
                                          IoU_history_train)
                         if phase == 'val':
                             loss_history_val.append(loss_av)
                             IoU_history_val.append(IoU_av)
-                            plot_history(phase, path_to_net, 
+                            plot_history(phase, epoch, i, path_to_net, 
                                          loss_history_val, 
                                          IoU_history_val)
                         rl_mini = 0.0

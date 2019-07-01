@@ -5,6 +5,7 @@ import numpy as np
 import cv2
 import torch
 import time
+import sys
 
 import utils
 from train import train
@@ -21,7 +22,7 @@ if __name__ == "__main__":
     # for different jobs use different optimizer
     # cycle_num % 2 == 0 --> SGD
     # cycle_num % 2 != 0 --> Adam
-    cycle_num = 0
+    cycle_num = int(sys.argv[1])
 
     dirs = '/beegfs/work/ws/hd_en396-fMRI_Data-0/BraTS/Data/HGG/'
     path_to_net = '/beegfs/work/ws/hd_en396-fMRI_Data-0/01Eva/Cycle_num' + str(cycle_num) + '/' 

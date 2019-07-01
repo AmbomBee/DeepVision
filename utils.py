@@ -122,7 +122,7 @@ def dice_loss(SR, GT, epsilon=1e-9):
         epsilon: used for numerical stability to avoid devide by zero errors
         Dice = 2*|Intersection(A,B)| / (|A| + |B|)
     '''
-    # count memberwise product of SR and GT, then sum by axis (2,2)
+    # count memberwise product of SR and GT, then sum by axis (2,3)
     numerator = 2 * torch.sum(torch.mul(SR,GT), (2, 3)) 
     SR_n = torch.mul(SR,SR)
     GT_n = torch.mul(GT,GT) 
