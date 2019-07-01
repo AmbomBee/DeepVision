@@ -93,7 +93,7 @@ def save_net(path, batch_size, epoch, cycle_num, train_indices,
                 'net' : net
                 }, filename)
         print('Network saved to ' + filename)
-
+    
 def one_hot(GT):
     '''
         Returns target by one-hot encoding
@@ -106,35 +106,37 @@ def one_hot(GT):
     one_hot = torch.empty([batch_size,4,W,H])
     # iterate over batches
     for i in range(batch_size):
-        for c in range(4):
-            one_hot[i][c]=(GT[i,:,:]==c)
+        for w in range(W):
+            for h in range(H):
+                for c in range(4):
+                    one_hot[i][c][w][h] = (GT[i,w,h] == c)
     return one_hot
     
 def dice_loss(SR, GT, epsilon=1e-9):
     '''
         Return dice loss for single class lable:
         SR: segmentation result
-            batch_size x c x W x H
+            batch_size x W x H
         GT: ground truth
-            batch_size x c x W x H
+            batch_size x W x H
         epsilon: used for numerical stability to avoid devide by zero errors
         Dice = 2*|Intersection(A,B)| / (|A| + |B|)
     '''
     # count memberwise product of SR and GT, then sum by axis (2,2)
-    numerator = 2*torch.sum(torch.mul(SR,GT), (2,3)) 
+    numerator = 2 * torch.sum(torch.mul(SR,GT), (2, 3)) 
     SR_n = torch.mul(SR,SR)
     GT_n = torch.mul(GT,GT) 
-    denominator = torch.sum(SR_n + GT_n, (2,3))
+    denominator = torch.sum(torch.add(SR_n, GT_n), (2, 3))
     # average dice over classes and batches
-    ret = 1 - torch.mean(numerator/(denominator+epsilon))
+    ret = torch.sub(1, torch.mean(torch.div(numerator,torch.add(denominator,epsilon))))
     return torch.tensor(ret, requires_grad=True, dtype = torch.float)
 
 def IoU(SR, GT, epsilon = 1e-9):
     '''
         IoU = |Intersection(SR,GT)| / (|SR| + |GT| - |Intersection(SR,GT)|)
     '''
-    numerator = torch.sum(torch.mul(SR,GT), (2,3)) 
+    numerator = torch.sum(torch.mul(SR,GT), (2, 3)) 
     SR_n = torch.mul(SR,SR)
     GT_n = torch.mul(GT,GT) 
-    denominator = torch.sum(torch.add(SR_n, GT_n), (2,3)) - numerator
-    return torch.mean(numerator / (denominator + epsilon))
+    denominator = torch.sub(torch.sum(torch.add(SR_n, GT_n), (2, 3)), numerator)
+    return torch.mean(torch.div(numerator, torch.add(denominator, epsilon)))
