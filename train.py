@@ -1,4 +1,5 @@
 from utils import *
+from metrics import runningScore, averageMeter
 import dataset
 from network import U_Net
 
@@ -10,16 +11,18 @@ import numpy as np
 import glob
 import time
 import matplotlib.pyplot as plt
+from tqdm.auto import tqdm
 
-def train(cycle_num, dirs, path_to_net, batch_size=16, test_split=0.3, 
-          random_state=666, epochs=5, learning_rate=0.0001, momentum=0.9, 
-          num_folds=5, num_slices=155):
+def train(cycle_num, dirs, path_to_net, plotter, batch_size=14, test_split=0.3, 
+          random_state=666, epochs=100, learning_rate=0.0001, momentum=0.9, 
+          num_folds=5, num_slices=155, n_classes=4):
     """
     Applies training on the network
         Args: 
             cycle_num (int): number of cycle in n-fold (num_folds) cross validation
             dirs (string): path to dataset subject directories 
             path_to_net (string): path to directory where to save network
+            plotter (callable): visdom plotter
             batch_size - default (int): batch size
             test_split - default (float): percentage of test split 
             random_state - default (int): seed for k-fold cross validation
@@ -28,13 +31,13 @@ def train(cycle_num, dirs, path_to_net, batch_size=16, test_split=0.3,
             momentum - default (float): momentum
             num_folds - default (int): number of folds in cross validation
             num_slices - default (int): number of slices per volume
+            n_classes - default (int): number of classes (regions)
     """
     print('Setting started', flush=True)
     
     # Creating data indices
     # arange len of list of subject dirs 
     indices = np.arange(len(glob.glob(dirs + '*')))
-    
     test_indices, trainset_indices = get_test_indices(indices, 
                                                      test_split)                                                    
     # kfold index generator
@@ -53,7 +56,7 @@ def train(cycle_num, dirs, path_to_net, batch_size=16, test_split=0.3,
             print('Let us use {} GPUs!'.format(num_GPU), flush=True)
             net = nn.DataParallel(net)
         net.to(device)
-        
+        criterion = nn.CrossEntropyLoss()
         if cycle_num % 2 == 0:
             optimizer = optim.SGD(net.parameters(), lr=learning_rate, 
                                       momentum=momentum)
@@ -78,103 +81,95 @@ def train(cycle_num, dirs, path_to_net, batch_size=16, test_split=0.3,
                                             batch_size, num_GPU)}
         print('Train and Val loading took: ', time.time()-start, flush=True)
         # make loss and acc history for train and val separatly
-        loss_history_train = []
-        IoU_history_train = []
-        loss_history_val = []
-        IoU_history_val = []
-        for epoch in range(epochs):
+        # Setup Metrics
+        running_metrics_val = runningScore(n_classes)
+        running_metrics_train = runningScore(n_classes)
+        val_loss_meter = averageMeter()
+        train_loss_meter = averageMeter()
+        for epoch in tqdm(range(epochs), desc='Epochs'):
             print('Epoch: ', epoch+1, flush=True)
             # Each epoch has a training and validation phase
-            for phase in ['train', 'val']:
+            for phase in ['train']: #, 'val']:
                 print('Phase: ', phase, flush=True)
                 start = time.time()
                 if phase == 'train':
                     # Set model to training mode
-                    net.train(True)
+                    net.train()
                 elif phase == 'val':
                     # Set model to evaluate mode
-                    net.train(False)
-                
-                running_loss = 0.0
-                rl_mini = 0.0
-                running_IoU = 0.0
-                r_IoU_mini = 0.0
+                    net.eval()
                 # Iterate over data.
-                for i, data in enumerate(dataloaders[phase]):
-                    if i % 10 == 0:
+                for i, data in tqdm(enumerate(dataloaders[phase]), desc='Data Iteration ' + phase):
+                    if (i + 1) % 100 == 0:
                         print('Number of Iteration [{}/{}]'.format(i+1, 
                         int(datalengths[phase]/batch_size)), flush=True)
                     
                     # get the inputs
-                    inputs = data['mri_data'].type(torch.FloatTensor).to(device)
-                    segmentations = data['seg'].type(torch.FloatTensor)
-                    segmentations = one_hot(segmentations).to(device)
+                    inputs = data['mri_data'].to(device)
+                    GT = data['seg'].to(device)
                     subject_slice_path = data['subject_slice_path']
                     # Clear all accumulated gradients
                     optimizer.zero_grad()
                     # Predict classes using inputs from the train set
-                    outputs = net(inputs)
+                    SR = net(inputs)
                     # Compute the loss based on the predictions and 
                     # actual segmentation
-                    softmax = nn.Softmax2d()
-                    predictions = softmax(outputs)
-                    loss = dice_loss(predictions, segmentations)
+                    loss = criterion(SR, GT)
                     # backward + optimize only if in training phase
                     if phase == 'train':
                         # Backpropagate the loss
-                        loss.backward(retain_graph=True)
+                        loss.backward()
                         # Adjust parameters according to the computed 
                         # gradients 
                         # -- weight update
                         optimizer.step()
-                    # track loss and IoU over epochs and all 500 iterations
-                    iou = IoU(predictions, segmentations).item()
-                    running_IoU += iou
-                    r_IoU_mini += iou
-                    running_loss += loss.item()
-                    rl_mini += loss.item()
-                    if (i + 1) % 10 == 0:
-                        loss_av = rl_mini / (batch_size*10)
-                        IoU_av = r_IoU_mini / (batch_size*10)
-                        print(phase, ' [{}, {}] loss: {}'.format(epoch + 1, i + 1, 
-                                                         loss_av), flush=True)
-                        print(phase, ' [{}, {}] IoU: {}'.format(epoch + 1, i + 1, 
-                                                         IoU_av), flush=True)
-                        if phase == 'train':
-                            loss_history_train.append(loss_av)
-                            IoU_history_train.append(IoU_av)
-                            plot_history(phase, epoch, i, path_to_net, 
-                                         loss_history_train, 
-                                         IoU_history_train)
-                        if phase == 'val':
-                            loss_history_val.append(loss_av)
-                            IoU_history_val.append(IoU_av)
-                            plot_history(phase, epoch, i, path_to_net, 
-                                         loss_history_val, 
-                                         IoU_history_val)
-                        rl_mini = 0.0
-                        r_IoU_mini = 0.0
-                        save_net(path_to_net, batch_size, epoch, cycle_num, train_indices, 
-                                 val_indices, test_indices, net, optimizer, iter_num=i)
-                        save_output(i, path_to_net, subject_slice_path, 
-                                    outputs.detach().cpu().numpy(), 
-                                    segmentations.detach().cpu().numpy())
-                    del loss
+                    # Trake and plot metrics and loss, and save network
+                    predictions = SR.data.max(1)[1].cpu().numpy()
+                    GT_cpu = GT.data.cpu().numpy()
+                    if phase == 'train':
+                        running_metrics_train.update(GT_cpu, predictions)
+                        train_loss_meter.update(loss.item(), n=1)
+                        if (i + 1) % 100 == 0:
+                            score, class_iou = running_metrics_train.get_scores()
+                            for k, v in score.items():
+                                plotter.plot(k + ' ' + phase + '_e' + str(epoch),
+                                             'itr', phase, k,  i + 1, v)
+                            for k, v in class_iou.items():
+                                print('Class {} IoU: {}'.format(k, v), flush=True)
+                                plotter.plot(str(k) + ' Class IoU' + phase + '_e' + str(epoch),
+                                             'itr', phase, str(k) + ' Class IoU',  i + 1, v)
+                            print('Loss Train', train_loss_meter.avg, flush=True)
+                            plotter.plot('Loss ' + phase + '_e' + str(epoch),
+                                         'itr', phase, 'Loss Train', i + 1, train_loss_meter.avg)
+                            save_net(path_to_net, batch_size, epoch, cycle_num, train_indices, 
+                                     val_indices, test_indices, net, optimizer, iter_num=i)
+                            save_output(i, path_to_net, subject_slice_path, 
+                                        SR.data.cpu().numpy(), 
+                                        GT_cpu)
+                    if phase == 'val':
+                        running_metrics_val.update(GT_cpu, predictions)
+                        val_loss_meter.update(loss.item(), n=1)
+                        if (i + 1) % 100 == 0:
+                            score, class_iou = running_metrics_val.get_scores()
+                            for k, v in score.items():
+                                plotter.plot(k + ' ' + phase + '_e' + str(epoch),
+                                             'itr', phase, k,  i + 1, v)
+                            for k, v in class_iou.items():
+                                print('Class {} IoU: {}'.format(k, v), flush=True)
+                                plotter.plot(str(k) + ' Class IoU' + phase + '_e' + str(epoch),
+                                             'itr', phase, str(k) + ' Class IoU',  i + 1, v)
+                            print('Loss Val', val_loss_meter.avg, flush=True)
+                            plotter.plot('Loss ' + phase + '_e' + str(epoch),
+                                         'itr', phase, 'Loss Val', i + 1, val_loss_meter.avg)
+                            save_net(path_to_net, batch_size, epoch, cycle_num, train_indices, 
+                                     val_indices, test_indices, net, optimizer, iter_num=i)
+                            save_output(i, path_to_net, subject_slice_path, 
+                                        SR.data.cpu().numpy(), 
+                                        GT_cpu)
                 print('Phase {} took {} s for whole {}set!'.format(phase, 
                       time.time()-start, phase), flush=True)
-                # Compute the average IoU and loss over all inputs
-                running_loss = running_loss / datalengths[phase]
-                running_IoU = running_IoU / datalengths[phase]
-                if phase == 'train':
-                    print ('Epoch [{}/{}], Train_loss: {:.4f}, Train_IoU: {:.2f}' 
-                           .format(epoch+1, epochs, running_loss, 
-                                   running_IoU), flush=True)
-                elif phase == 'val':
-                    print ('Epoch [{}/{}], Val_loss: {:.4f}, Val_IoU: {:.2f}' 
-                           .format(epoch+1, epochs, running_loss, 
-                                   running_IoU), flush=True)
             # Call the learning rate adjustment function after every epoch
-            scheduler.step(running_loss)
+            scheduler.step(val_loss_meter.avg)
     # save network after training
     save_net(path, batch_size, epochs, cycle_num, train_indices, 
              val_indices, test_indices, net, optimizer, iter_num=None)

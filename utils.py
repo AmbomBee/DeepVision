@@ -1,12 +1,12 @@
 import nibabel as nib
 from matplotlib import pyplot as plt
-import cv2
 from torch.utils.data import DataLoader
 import torch
 from sklearn.model_selection import KFold
 import numpy as np
 from torch.utils.data import DataLoader
 import scipy.misc
+from visdom import Visdom
 
 def save_output(i, path_to_net, path, SR, GT):
     torch.save({'SR': SR, 'GT': GT, 'path': path}, path_to_net + 'output' + str(i) + '.pt')
@@ -94,49 +94,19 @@ def save_net(path, batch_size, epoch, cycle_num, train_indices,
                 }, filename)
         print('Network saved to ' + filename)
     
-def one_hot(GT):
-    '''
-        Returns target by one-hot encoding
-        GT: b x W x H
-        output: b x c x W x H one hot representation
-    '''
-    batch_size = GT.shape[0]
-    W = GT.shape[1]
-    H = GT.shape[2]
-    one_hot = torch.empty([batch_size,4,W,H])
-    # iterate over batches
-    for i in range(batch_size):
-        for w in range(W):
-            for h in range(H):
-                for c in range(4):
-                    one_hot[i][c][w][h] = (GT[i,w,h] == c)
-    return one_hot
-    
-def dice_loss(SR, GT, epsilon=1e-9):
-    '''
-        Return dice loss for single class lable:
-        SR: segmentation result
-            batch_size x W x H
-        GT: ground truth
-            batch_size x W x H
-        epsilon: used for numerical stability to avoid devide by zero errors
-        Dice = 2*|Intersection(A,B)| / (|A| + |B|)
-    '''
-    # count memberwise product of SR and GT, then sum by axis (2,3)
-    numerator = 2 * torch.sum(torch.mul(SR,GT), (2, 3)) 
-    SR_n = torch.mul(SR,SR)
-    GT_n = torch.mul(GT,GT) 
-    denominator = torch.sum(torch.add(SR_n, GT_n), (2, 3))
-    # average dice over classes and batches
-    ret = torch.sub(1, torch.mean(torch.div(numerator,torch.add(denominator,epsilon))))
-    return torch.tensor(ret, requires_grad=True, dtype = torch.float)
-
-def IoU(SR, GT, epsilon = 1e-9):
-    '''
-        IoU = |Intersection(SR,GT)| / (|SR| + |GT| - |Intersection(SR,GT)|)
-    '''
-    numerator = torch.sum(torch.mul(SR,GT), (2, 3)) 
-    SR_n = torch.mul(SR,SR)
-    GT_n = torch.mul(GT,GT) 
-    denominator = torch.sub(torch.sum(torch.add(SR_n, GT_n), (2, 3)), numerator)
-    return torch.mean(torch.div(numerator, torch.add(denominator, epsilon)))
+class VisdomLinePlotter(object):
+    """Plots to Visdom"""
+    def __init__(self, env_name='main'):
+        self.viz = Visdom()
+        self.env = env_name
+        self.plots = {}
+    def plot(self, var_name, x_name, split_name, title_name, x, y):
+        if var_name not in self.plots:
+            self.plots[var_name] = self.viz.line(X=np.array([x,x]), Y=np.array([y,y]), env=self.env, opts=dict(
+                legend=[split_name],
+                title=title_name,
+                xlabel=x_name,
+                ylabel=var_name
+            ))
+        else:
+            self.viz.line(X=np.array([x]), Y=np.array([y]), env=self.env, win=self.plots[var_name], name=split_name, update = 'append')
