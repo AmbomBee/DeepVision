@@ -8,8 +8,8 @@ from torch.utils.data import DataLoader
 import scipy.misc
 from visdom import Visdom
 
-def save_output(i, path_to_net, path, SR, GT):
-    torch.save({'SR': SR, 'GT': GT, 'path': path}, path_to_net + 'output' + str(i) + '.pt')
+def save_output(epoch, path_to_net, path, SR, GT):
+    torch.save({'SR': SR, 'GT': GT, 'path': path}, path_to_net + 'output_epoch' + str(epoch) + '.pt')
     
 def plot_history(phase, epoch, itr, path_to_net, loss_history, IoU_history):
     fig, ax = plt.subplots(1,2)
@@ -65,7 +65,8 @@ def save_net(path, batch_size, epoch, cycle_num, train_indices,
     to a given path
     """
     if iter_num is not None:
-        filename = path + 'cv_' + str(cycle_num) + '_iterin_' + str(epoch) + 'net.pt'
+        #filename = path + 'cv_' + str(cycle_num) + '_iterin_' + str(epoch) + 'net.pt'
+        filename = path + 'cv_' + str(cycle_num) + 'net.pt'
         torch.save({
                 'iter_num': iter_num,
                 'batch_size': batch_size,
