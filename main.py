@@ -7,8 +7,8 @@ import time
 import sys
 
 import utils
+#from retrain import retrain
 from train import train
-
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 torch.manual_seed(1)
@@ -25,5 +25,6 @@ if __name__ == "__main__":
     dirs = '/home/master/DeepVision/01Data/MICCAI_BraTS_2019_Data_Training/HGG/'
     path_to_net = '/home/master/DeepVision/02Evaluation/Cycle_num' + str(cycle_num) + '/' 
     train(cycle_num, dirs, path_to_net, plotter)
+    #retrain(cycle_num, dirs, path_to_net, plotter)
     print('Whole run took ', time.time()-start, flush=True)
     print('Done!', flush=True)

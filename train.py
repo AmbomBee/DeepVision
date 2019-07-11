@@ -179,11 +179,11 @@ def train(cycle_num, dirs, path_to_net, plotter, batch_size=12, test_split=0.3,
                         print('Loss Val', val_loss_meter.avg, flush=True)
                         plotter.plot('Loss ', 'itr', phase, 'Loss Val', 
                                      itr, val_loss_meter.avg)
-                if score['Mean IoU'] > iou_best:
-                    save_net(path_to_net, batch_size, epoch, cycle_num, train_indices, 
-                             val_indices, test_indices, net, optimizer)
-                    iou_best = score['Mean IoU']
                 if (epoch + 1) % 10 == 0:
+                    if score['Mean IoU'] > iou_best:
+                        save_net(path_to_net, batch_size, epoch, cycle_num, train_indices, 
+                                 val_indices, test_indices, net, optimizer)
+                        iou_best = score['Mean IoU']
                     save_output(epoch, path_to_net, subject_slice_path, 
                                 SR.data.cpu().numpy(), GT_cpu)
                 print('Phase {} took {} s for whole {}set!'.format(phase, 
@@ -191,5 +191,5 @@ def train(cycle_num, dirs, path_to_net, plotter, batch_size=12, test_split=0.3,
             # Call the learning rate adjustment function after every epoch
             scheduler.step(val_loss_meter.avg)
     # save network after training
-    save_net(path, batch_size, epochs, cycle_num, train_indices, 
+    save_net(path_to_net, batch_size, epochs, cycle_num, train_indices, 
              val_indices, test_indices, net, optimizer, iter_num=None)
