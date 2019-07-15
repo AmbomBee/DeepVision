@@ -1,3 +1,6 @@
+# Adapted from network written by LeeJunHyun
+# https://github.com/LeeJunHyun/Image_Segmentation/blob/master/network.py
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
