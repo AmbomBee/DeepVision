@@ -1,6 +1,6 @@
 # DeepVision Project
 
-pytorch Implementation of U-Net
+pytorch Implementation of U-Net (adapted to the requirments of the BraTS'19 dataset)
 
 U-Net: Convolutional Networks for Biomedical Image Segmentation
 https://arxiv.org/abs/1505.04597
